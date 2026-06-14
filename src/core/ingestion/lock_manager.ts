@@ -11,7 +11,10 @@ export class AdvisoryLockManager {
     const client: pg.PoolClient = await this.pool.connect();
     try {
       const lockId = this.hashDeviceId(deviceId);
-      const result = await client.query(`SELECT pg_try_advisory_lock($1) AS locked`, [lockId]);
+      const result = await client.query<{ locked: boolean }>(
+        `SELECT pg_try_advisory_lock($1) AS locked`,
+        [lockId],
+      );
       return result.rows[0]?.locked === true;
     } finally {
       client.release();

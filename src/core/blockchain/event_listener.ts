@@ -22,7 +22,7 @@ export class LedgerEventSynchronizer {
 
   constructor(private rpcUrl: string) {}
 
-  async start(): Promise<void> {
+  start(): void {
     this.intervalHandle = setInterval(() => {
       void this.pollLatestLedger();
     }, this.pollIntervalMs);
@@ -48,7 +48,7 @@ export class LedgerEventSynchronizer {
         await this.processLedger(ledger);
         this.syncState.lastSyncedLedger = seq;
       } catch (error) {
-        console.error(`Failed to sync ledger ${seq}:`, error);
+        console.error(`Failed to sync ledger ${String(seq)}:`, error);
         break;
       }
     }
@@ -69,7 +69,7 @@ export class LedgerEventSynchronizer {
   }
 
   private async fetchLedger(sequence: number): Promise<LedgerEntry> {
-    const response = await fetch(`${this.rpcUrl}/ledgers/${sequence}`);
+    const response = await fetch(`${this.rpcUrl}/ledgers/${String(sequence)}`);
     return response.json() as Promise<LedgerEntry>;
   }
 
@@ -78,7 +78,7 @@ export class LedgerEventSynchronizer {
       try {
         const response = await fetch(`${this.rpcUrl}/transactions/${txHash}`);
         const txData = (await response.json()) as { operations: unknown[] };
-        console.log(`Processed tx ${txHash} with ${txData.operations.length} ops`);
+        console.log(`Processed tx ${txHash} with ${String(txData.operations.length)} ops`);
       } catch (error) {
         console.error(`Failed processing tx ${txHash}:`, error);
       }

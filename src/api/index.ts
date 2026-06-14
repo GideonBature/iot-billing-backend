@@ -1,8 +1,9 @@
+import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { getEnv } from '../config/env.js';
 
-export async function buildApp() {
+export async function buildApp(): Promise<FastifyInstance> {
   const env = getEnv();
 
   const app = Fastify({
@@ -15,24 +16,24 @@ export async function buildApp() {
     credentials: true,
   });
 
-  app.get('/health', async () => {
+  app.get('/health', () => {
     return { status: 'ok', timestamp: Date.now() };
   });
 
   return app;
 }
 
-async function start() {
+async function start(): Promise<void> {
   const env = getEnv();
   const app = await buildApp();
 
   try {
     await app.listen({ port: env.PORT, host: env.HOST });
-    console.log(`Server running on ${env.HOST}:${env.PORT}`);
+    console.log(`Server running on ${env.HOST}:${String(env.PORT)}`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
 }
 
-start();
+void start();

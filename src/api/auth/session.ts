@@ -23,7 +23,7 @@ export function generateChallenge(walletAddress: string): { nonce: string; expir
   return { nonce, expiresAt };
 }
 
-export function verifyChallenge(walletAddress: string, signature: string): boolean {
+export function verifyChallenge(walletAddress: string, _signature: string): boolean {
   const challenge = challengeStore.get(walletAddress);
   if (!challenge) return false;
   if (Date.now() > challenge.expiresAt) {

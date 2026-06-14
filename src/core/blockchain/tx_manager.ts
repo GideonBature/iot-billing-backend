@@ -13,7 +13,7 @@ export interface TransactionRecord {
 }
 
 export class TransactionManager {
-  private transactions: Map<string, TransactionRecord> = new Map();
+  private transactions = new Map<string, TransactionRecord>();
 
   constructor(
     private rpcClient: SorobanRpcClient,
@@ -40,7 +40,7 @@ export class TransactionManager {
     this.transactions.set(record.id, record);
 
     try {
-      const result = await this.rpcClient.submitTransaction(envelope);
+      await this.rpcClient.submitTransaction(envelope);
       record.status = 'submitted';
       return record;
     } catch (error) {
@@ -51,7 +51,7 @@ export class TransactionManager {
     }
   }
 
-  async confirmTransaction(txId: string): Promise<void> {
+  confirmTransaction(txId: string): void {
     const record = this.transactions.get(txId);
     if (!record) throw new Error(`Transaction ${txId} not found`);
     record.status = 'confirmed';

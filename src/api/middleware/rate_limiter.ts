@@ -18,12 +18,14 @@ const TIER_LIMITS: Record<string, RateLimitConfig | undefined> = {
 };
 
 export class DynamicRateLimiter {
-  private requestCounts: Map<string, { count: number; resetAt: number; blockedUntil: number }> =
-    new Map();
+  private requestCounts = new Map<
+    string,
+    { count: number; resetAt: number; blockedUntil: number }
+  >();
 
   checkLimit(deviceProfile: DeviceProfile): boolean {
     const now = Date.now();
-    const config = (TIER_LIMITS[deviceProfile.billingTier] ?? TIER_LIMITS['free'])!;
+    const config = TIER_LIMITS[deviceProfile.billingTier] ?? TIER_LIMITS['free'];
 
     const entry = this.requestCounts.get(deviceProfile.deviceId);
 
@@ -32,14 +34,14 @@ export class DynamicRateLimiter {
       if (entry.resetAt < now) {
         this.requestCounts.set(deviceProfile.deviceId, {
           count: 1,
-          resetAt: now + config.durationMs,
+          resetAt: now + (config?.durationMs ?? 1000),
           blockedUntil: 0,
         });
         return true;
       }
       entry.count += 1;
-      if (entry.count > config.points) {
-        entry.blockedUntil = now + config.blockDurationMs;
+      if (entry.count > (config?.points ?? 10)) {
+        entry.blockedUntil = now + (config?.blockDurationMs ?? 30000);
         return false;
       }
       return true;
@@ -47,7 +49,7 @@ export class DynamicRateLimiter {
 
     this.requestCounts.set(deviceProfile.deviceId, {
       count: 1,
-      resetAt: now + config.durationMs,
+      resetAt: now + (config?.durationMs ?? 1000),
       blockedUntil: 0,
     });
     return true;

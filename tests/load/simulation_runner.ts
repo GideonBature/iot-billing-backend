@@ -77,12 +77,14 @@ async function runSimulation(
   concurrentClients: number,
   durationSec: number,
 ): Promise<SimulationMetrics> {
-  console.log(`Starting simulation: ${concurrentClients} clients for ${durationSec}s`);
+  console.log(
+    `Starting simulation: ${String(concurrentClients)} clients for ${String(durationSec)}s`,
+  );
 
   const latencies: number[] = [];
   let accepted = 0;
   let rejected = 0;
-  let errors = 0;
+  const errors = 0;
 
   const report = (latency: number, accepted_: boolean): void => {
     if (latency > 0) latencies.push(latency);
@@ -129,7 +131,7 @@ runSimulation(concurrentClients, durationSec)
     console.log(JSON.stringify(metrics, null, 2));
     process.exit(0);
   })
-  .catch((err) => {
+  .catch((err: unknown) => {
     console.error('Simulation failed:', err);
     process.exit(1);
   });

@@ -19,8 +19,8 @@ export class FeeOptimizer {
   private baseFee = 100;
   private resourceMultiplier = 1.2;
 
-  async preFlightSimulate(txData: SorobanTransactionData): Promise<FeeEstimate> {
-    const ledgerResources = await this.simulateLedgerFootprint(txData);
+  preFlightSimulate(txData: SorobanTransactionData): FeeEstimate {
+    const ledgerResources = this.simulateLedgerFootprint(txData);
     const resourceFee = this.calculateResourceFee(ledgerResources);
     const minFee = resourceFee;
     const maxFee = Math.floor(resourceFee * 3);
@@ -34,7 +34,7 @@ export class FeeOptimizer {
     };
   }
 
-  async optimizeFootprint(txData: SorobanTransactionData): Promise<SorobanTransactionData> {
+  optimizeFootprint(txData: SorobanTransactionData): SorobanTransactionData {
     const optimized: SorobanTransactionData = {
       ...txData,
       footprint: {
@@ -45,12 +45,12 @@ export class FeeOptimizer {
     return optimized;
   }
 
-  private async simulateLedgerFootprint(_txData: SorobanTransactionData): Promise<{
+  private simulateLedgerFootprint(_txData: SorobanTransactionData): {
     entriesRead: number;
     entriesWritten: number;
     bytesRead: number;
     bytesWritten: number;
-  }> {
+  } {
     return {
       entriesRead: _txData.footprint?.readOnly.length ?? 0,
       entriesWritten: _txData.footprint?.readWrite.length ?? 0,

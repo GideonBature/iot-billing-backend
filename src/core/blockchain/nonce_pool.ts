@@ -7,7 +7,7 @@ interface NonceEntry {
 }
 
 export class NoncePool {
-  private nonces: Map<string, NonceEntry> = new Map();
+  private nonces = new Map<string, NonceEntry>();
   private mutex = new Mutex();
   private seqCounter = 0;
 

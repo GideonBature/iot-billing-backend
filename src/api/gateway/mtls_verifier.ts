@@ -8,7 +8,7 @@ export interface MtlsVerificationResult {
 }
 
 export class MtlsGatewayVerifier {
-  private whitelist: Set<string> = new Set();
+  private whitelist = new Set<string>();
 
   addToWhitelist(serial: string): void {
     this.whitelist.add(serial);

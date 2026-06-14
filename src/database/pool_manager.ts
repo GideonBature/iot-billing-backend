@@ -8,7 +8,7 @@ interface PoolMetrics {
 }
 
 export class ElasticPoolManager {
-  private pools: Map<string, pg.Pool> = new Map();
+  private pools = new Map<string, pg.Pool>();
   private minConnections = 2;
   private maxConnections = 20;
 
@@ -31,7 +31,7 @@ export class ElasticPoolManager {
     return this.pools.get(name);
   }
 
-  async getMetrics(name: string): Promise<PoolMetrics> {
+  getMetrics(name: string): PoolMetrics {
     const pool = this.pools.get(name);
     if (!pool) throw new Error(`Pool "${name}" not found`);
 
