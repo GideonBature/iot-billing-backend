@@ -41,7 +41,7 @@ export class AdvisoryLockManager extends EventEmitter {
 
   private compositeLockId(deviceId: string, bucketStartEpoch: number): number {
     let hash = 0;
-    const composite = `${deviceId}:${bucketStartEpoch}`;
+    const composite = `${deviceId}:${String(bucketStartEpoch)}`;
     for (let i = 0; i < composite.length; i++) {
       const chr = composite.charCodeAt(i);
       hash = (hash << 5) - hash + chr;
@@ -72,7 +72,7 @@ export class AdvisoryLockManager extends EventEmitter {
 
         if (opts.heartbeatIntervalMs > 0) {
           const heartbeat = setInterval(() => {
-            this.heartbeat(lockId, opts.ttlMs).catch(() => {});
+            this.heartbeat(lockId, opts.ttlMs);
           }, opts.heartbeatIntervalMs);
           this.heldLocks.set(lockId, { timer, heartbeat, client });
         } else {
@@ -97,7 +97,7 @@ export class AdvisoryLockManager extends EventEmitter {
     options?: Partial<LockOptions>,
   ): Promise<LockAcquisitionResult> {
     const opts = { ...DEFAULT_LOCK_OPTIONS, ...options };
-    const maxAttempts = opts.retryAttempts ?? DEFAULT_LOCK_OPTIONS.retryAttempts;
+    const maxAttempts = opts.retryAttempts;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const result = await this.acquireLock(deviceId, bucketStartEpoch, options);
@@ -120,23 +120,25 @@ export class AdvisoryLockManager extends EventEmitter {
 
   async releaseLockById(lockId: number): Promise<boolean> {
     const held = this.heldLocks.get(lockId);
-    if (held) {
-      clearTimeout(held.timer);
-      if (held.heartbeat) clearInterval(held.heartbeat);
-      this.heldLocks.delete(lockId);
+    if (!held) {
+      this.emit('lockReleased', { lockId });
+      return true;
     }
 
-    const client = await this.pool.connect();
+    clearTimeout(held.timer);
+    if (held.heartbeat) clearInterval(held.heartbeat);
+    this.heldLocks.delete(lockId);
+
     try {
-      await client.query(`SELECT pg_advisory_unlock($1)`, [lockId]);
+      await held.client.query(`SELECT pg_advisory_unlock($1)`, [lockId]);
       return true;
     } finally {
-      client.release();
+      held.client.release();
       this.emit('lockReleased', { lockId });
     }
   }
 
-  private async heartbeat(lockId: number, ttlMs: number): Promise<void> {
+  private heartbeat(lockId: number, ttlMs: number): void {
     const held = this.heldLocks.get(lockId);
     if (!held) return;
 
@@ -157,8 +159,12 @@ export class AdvisoryLockManager extends EventEmitter {
 
     held.client
       .query(`SELECT pg_advisory_unlock($1)`, [lockId])
-      .then(() => held.client.release())
-      .catch(() => held.client.release());
+      .then(() => {
+        held.client.release();
+      })
+      .catch(() => {
+        held.client.release();
+      });
 
     this.emit('lockExpired', { lockId });
   }
@@ -180,5 +186,5 @@ export class AdvisoryLockManager extends EventEmitter {
 }
 
 export function composeIdempotencyKey(deviceId: string, bucketStartEpoch: number): string {
-  return `${deviceId}:${bucketStartEpoch}`;
+  return `${deviceId}:${String(bucketStartEpoch)}`;
 }
