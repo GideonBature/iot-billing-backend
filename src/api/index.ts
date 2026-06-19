@@ -5,7 +5,9 @@ import cors from '@fastify/cors';
 import { getEnv } from '../config/env.js';
 import { initTelemetry, shutdownTelemetry } from '../core/diagnostics/otel.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerTracingHooks } from './middleware/tracing.js';
+import { TelemetryNotificationListener, closeTimescalePool } from '../database/pool_manager.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const env = getEnv();
@@ -27,6 +29,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   registerAuthRoutes(app);
+  registerAnalyticsRoutes(app);
 
   return app;
 }
@@ -37,8 +40,13 @@ async function start(): Promise<void> {
   const env = getEnv();
   const app = await buildApp();
 
+  const listener = new TelemetryNotificationListener();
+  await listener.start();
+
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info(`Received ${signal}, shutting down`);
+    await listener.stop();
+    await closeTimescalePool();
     await app.close();
     await shutdownTelemetry();
     process.exit(0);
@@ -56,6 +64,8 @@ async function start(): Promise<void> {
     console.log(`Server running on ${env.HOST}:${String(env.PORT)}`);
   } catch (err) {
     app.log.error(err);
+    await listener.stop();
+    await closeTimescalePool();
     await shutdownTelemetry();
     process.exit(1);
   }

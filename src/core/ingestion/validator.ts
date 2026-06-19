@@ -2,6 +2,7 @@ import nacl from 'tweetnacl';
 import { Buffer } from 'node:buffer';
 import { getDiagnosticsTracer } from '../diagnostics/tracer.js';
 import { DOMAIN_TELEMETRY, TELEMETRY_DOMAIN_ATTR } from '../diagnostics/sampler.js';
+import { refreshAggregatesAdaptively } from '../../database/pool_manager.js';
 
 export interface SignedPayload {
   deviceId: string;
@@ -22,6 +23,26 @@ const NONCE_WINDOW_MS = 5000;
 setInterval(() => {
   NONCE_CACHE.clear();
 }, NONCE_WINDOW_MS);
+
+let validatedCount = 0;
+
+export function getValidatedCount(): number {
+  return validatedCount;
+}
+
+export function resetValidatedCount(): void {
+  validatedCount = 0;
+}
+
+function incrementValidationCount(): void {
+  validatedCount++;
+  if (validatedCount >= 10000) {
+    validatedCount = 0;
+    void refreshAggregatesAdaptively().catch((err: unknown) => {
+      console.error('Failed to trigger adaptive refresh from validator:', err);
+    });
+  }
+}
 
 export function validateSignature(publicKey: Uint8Array, payload: SignedPayload): ValidationResult {
   const tracer = getDiagnosticsTracer();
@@ -63,6 +84,9 @@ export function validateSignature(publicKey: Uint8Array, payload: SignedPayload)
 
       NONCE_CACHE.add(payload.nonce);
       span.setAttribute('validation.result', 'valid');
+
+      incrementValidationCount();
+
       return { valid: true };
     },
     { [TELEMETRY_DOMAIN_ATTR]: DOMAIN_TELEMETRY },
