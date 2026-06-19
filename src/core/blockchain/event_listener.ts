@@ -1,3 +1,6 @@
+import { getDiagnosticsTracer } from '../diagnostics/tracer.js';
+import { DOMAIN_BLOCKCHAIN, TELEMETRY_DOMAIN_ATTR } from '../diagnostics/sampler.js';
+
 interface LedgerEntry {
   sequence: number;
   hash: string;
@@ -12,6 +15,7 @@ interface SyncState {
 }
 
 export class LedgerEventSynchronizer {
+  private tracer = getDiagnosticsTracer();
   private syncState: SyncState = {
     lastSyncedLedger: 0,
     targetLedger: 0,
@@ -58,7 +62,7 @@ export class LedgerEventSynchronizer {
 
   private async pollLatestLedger(): Promise<void> {
     try {
-      const response = await fetch(`${this.rpcUrl}/ledgers/latest`);
+      const response = await this.rpcFetch(`${this.rpcUrl}/ledgers/latest`);
       const latest = (await response.json()) as { sequence: number };
       if (latest.sequence > this.syncState.lastSyncedLedger) {
         await this.catchUp(this.syncState.lastSyncedLedger, latest.sequence);
@@ -69,14 +73,14 @@ export class LedgerEventSynchronizer {
   }
 
   private async fetchLedger(sequence: number): Promise<LedgerEntry> {
-    const response = await fetch(`${this.rpcUrl}/ledgers/${String(sequence)}`);
+    const response = await this.rpcFetch(`${this.rpcUrl}/ledgers/${String(sequence)}`);
     return response.json() as Promise<LedgerEntry>;
   }
 
   private async processLedger(ledger: LedgerEntry): Promise<void> {
     for (const txHash of ledger.transactions) {
       try {
-        const response = await fetch(`${this.rpcUrl}/transactions/${txHash}`);
+        const response = await this.rpcFetch(`${this.rpcUrl}/transactions/${txHash}`);
         const txData = (await response.json()) as { operations: unknown[] };
         console.log(`Processed tx ${txHash} with ${String(txData.operations.length)} ops`);
       } catch (error) {
@@ -87,5 +91,22 @@ export class LedgerEventSynchronizer {
 
   getSyncState(): SyncState {
     return { ...this.syncState };
+  }
+
+  private rpcFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    return this.tracer.traceAsync(
+      'blockchain.rpcFetch',
+      async () =>
+        fetch(url, {
+          ...init,
+          headers: this.tracer.injectTraceContext({
+            ...(init.headers as Record<string, string> | undefined),
+          }),
+        }),
+      {
+        [TELEMETRY_DOMAIN_ATTR]: DOMAIN_BLOCKCHAIN,
+        'rpc.url': url,
+      },
+    );
   }
 }

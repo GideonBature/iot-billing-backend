@@ -1,3 +1,6 @@
+import { getDiagnosticsTracer } from '../diagnostics/tracer.js';
+import { DOMAIN_BLOCKCHAIN, TELEMETRY_DOMAIN_ATTR } from '../diagnostics/sampler.js';
+
 export enum CircuitState {
   CLOSED = 'CLOSED',
   OPEN = 'OPEN',
@@ -22,6 +25,7 @@ export class SorobanRpcClient {
   private successCount = 0;
   private lastFailureTime = 0;
   private config: CircuitBreakerConfig;
+  private tracer = getDiagnosticsTracer();
 
   constructor(
     private rpcUrl: string,
@@ -39,24 +43,38 @@ export class SorobanRpcClient {
       }
     }
 
-    try {
-      const response = await fetch(`${this.rpcUrl}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tx: txEnvelope }),
-      });
+    return this.tracer.traceAsync(
+      'blockchain.submitTransaction',
+      async (span) => {
+        span.setAttribute('rpc.url', this.rpcUrl);
 
-      if (!response.ok) {
-        throw new Error(`RPC error: ${response.statusText}`);
-      }
+        const headers = this.tracer.injectTraceContext({
+          'Content-Type': 'application/json',
+        });
 
-      const result = (await response.json()) as { hash: string; status: string };
-      this.onSuccess();
-      return result;
-    } catch (error) {
-      this.onFailure();
-      throw error;
-    }
+        try {
+          const response = await fetch(`${this.rpcUrl}/transactions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ tx: txEnvelope }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`RPC error: ${response.statusText}`);
+          }
+
+          const result = (await response.json()) as { hash: string; status: string };
+          span.setAttribute('tx.hash', result.hash);
+          span.setAttribute('tx.status', result.status);
+          this.onSuccess();
+          return result;
+        } catch (error) {
+          this.onFailure();
+          throw error;
+        }
+      },
+      { [TELEMETRY_DOMAIN_ATTR]: DOMAIN_BLOCKCHAIN },
+    );
   }
 
   private onSuccess(): void {
